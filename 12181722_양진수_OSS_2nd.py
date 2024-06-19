@@ -1,3 +1,4 @@
+
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
@@ -5,7 +6,6 @@ from sklearn.cluster import KMeans
 
 file_path = 'ratings.dat'
 ratings = pd.read_csv(file_path, sep='::', names=['user_id', 'movie_id', 'rating', 'timestamp'], engine='python')
-
 
 movie_id_map = {movie_id: idx for idx, movie_id in enumerate(ratings['movie_id'].unique())}
 ratings['movie_idx'] = ratings['movie_id'].map(movie_id_map)
@@ -23,20 +23,21 @@ for row in ratings.itertuples():
 kmeans = KMeans(n_clusters=3, random_state=0)
 clusters = kmeans.fit_predict(user_item_matrix)
 
+
 clustered_users = [[] for _ in range(3)]
 for user_id, cluster_id in enumerate(clusters):
     clustered_users[cluster_id].append(user_id)
 
 
-    
+
 def average_rating(matrix):
-    return np.nanmean(matrix, axis=0)
+    return np.mean(matrix, axis=0)
 
 def additive_utilitarian(matrix):
-    return np.nansum(matrix, axis=0)
+    return np.sum(matrix, axis=0)
 
 def simple_count(matrix):
-    return np.sum(~np.isnan(matrix), axis=0)
+    return np.count_nonzero(matrix, axis=0)
 
 def approval_voting(matrix, threshold=4):
     return np.sum(matrix >= threshold, axis=0)
@@ -44,6 +45,15 @@ def approval_voting(matrix, threshold=4):
 def borda_count(matrix):
     ranks = matrix.argsort().argsort()
     return np.sum(ranks, axis=0)
+
+def copeland_rule(matrix):
+    wins = np.zeros(matrix.shape[1])
+    for i in range(matrix.shape[1]):
+        for j in range(matrix.shape[1]):
+            if i != j:
+                wins[i] += np.sum(matrix[:, i] > matrix[:, j])
+                wins[i] -= np.sum(matrix[:, i] < matrix[:, j])
+    return wins
 
 
 recommendations = {}
@@ -57,10 +67,12 @@ for cluster_id, user_ids in enumerate(clustered_users):
         'simple_count': simple_count(cluster_matrix).argsort()[::-1][:10],
         'approval_voting': approval_voting(cluster_matrix).argsort()[::-1][:10],
         'borda_count': borda_count(cluster_matrix).argsort()[::-1][:10],
-        
+        'copeland_rule': copeland_rule(np.nan_to_num(cluster_matrix)).argsort()[::-1][:10],  # NaN 값을 0으로 대체
     }
-    
+
+
 for cluster_id, recs in recommendations.items():
-    print(f"\n클러스터 {cluster_id}:")
+    print(f"클러스터 {cluster_id}:")
     for algo, movies in recs.items():
         print(f"  {algo}: {movies}")
+
